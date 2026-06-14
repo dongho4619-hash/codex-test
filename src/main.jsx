@@ -1,54 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { AreaChart, Area, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
+import App from './App.jsx';
 import './styles.css';
 
-const today = () => new Date().toISOString().slice(0, 10);
-const addDays = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
-const uid = () => crypto.randomUUID?.() || String(Date.now() + Math.random());
-const seed = {
-  goals: { target: 'Reading 1지문 + 단어 20개 + Speaking 2문항 녹음', dailyMinutes: 120 },
-  vocab: [
-    { id: uid(), word: 'conspicuous', meaning: '눈에 잘 띄는, 뚜렷한', pos: 'adjective', example: 'The author makes a conspicuous contrast between the two theories.', status: 'learning', reviewDate: today(), interval: 1 },
-    { id: uid(), word: 'plausible', meaning: '그럴듯한, 타당해 보이는', pos: 'adjective', example: 'The professor offers a plausible explanation for the phenomenon.', status: 'new', reviewDate: addDays(1), interval: 1 },
-    { id: uid(), word: 'mitigate', meaning: '완화하다', pos: 'verb', example: 'New policies helped mitigate the impact of urban growth.', status: 'mastered', reviewDate: addDays(7), interval: 7 }
-  ],
-  materials: [
-    { id: uid(), date: today(), reading: 'Passage: Coral reefs are often described as ocean rainforests because they support a remarkable diversity of species. Recent warming events, however, have weakened this ecosystem.', listening: 'Script: Today we will compare two hypotheses about why some birds migrate at night rather than during the day.', speaking: 'Question: Describe a study habit that helped you improve. Explain why it was effective.', writing: 'Topic: Do you agree or disagree that students learn more effectively when they study in groups?' }
-  ],
-  wrongNotes: [{ id: uid(), date: today(), section: 'Reading', question: 'Inference question about paragraph 3', reason: '문장 간 인과관계를 반대로 해석함', fix: 'transition signal과 근거 문장을 먼저 표시하기' }],
-  timerLogs: [
-    { id: uid(), date: today(), subject: 'Reading', minutes: 45 },
-    { id: uid(), date: today(), subject: 'Vocabulary', minutes: 30 },
-    { id: uid(), date: addDays(-1), subject: 'Listening', minutes: 55 }
-  ],
-  scores: [{ id: uid(), date: addDays(-20), reading: 20, listening: 21, speaking: 19, writing: 20 }, { id: uid(), date: today(), reading: 23, listening: 22, speaking: 20, writing: 21 }]
-};
-function useStore() {
-  const [data, setData] = useState(() => JSON.parse(localStorage.getItem('toefl-coach') || 'null') || seed);
-  useEffect(() => localStorage.setItem('toefl-coach', JSON.stringify(data)), [data]);
-  return [data, setData];
-}
-const sections = ['Reading','Listening','Speaking','Writing'];
-function Card({title, icon, children}) { return <section className="card"><div className="card-title">{icon}{title}</div>{children}</section>; }
-function Dashboard({data}) {
-  const todayMin = data.timerLogs.filter(l=>l.date===today()).reduce((s,l)=>s+l.minutes,0);
-  const due = data.vocab.filter(v=>v.reviewDate<=today() && v.status!=='mastered').length;
-  const latest = [...data.scores].sort((a,b)=>b.date.localeCompare(a.date))[0];
-  const wrongCounts = sections.map(s=>({section:s, count:data.wrongNotes.filter(n=>n.section===s).length}));
-  const weak = wrongCounts.sort((a,b)=>b.count-a.count)[0]?.section || '없음';
-  return <div className="grid dashboard"><Card title="오늘 공부 목표" icon={<span>📝</span>}><b>{data.goals.target}</b><p>{todayMin}/{data.goals.dailyMinutes}분 완료</p></Card><Card title="오늘 공부시간" icon={<span>⏱️</span>}><strong>{todayMin}분</strong><p>목표까지 {Math.max(data.goals.dailyMinutes-todayMin,0)}분</p></Card><Card title="암기 단어" icon={<span>📚</span>}><strong>{due}개</strong><p>오늘 복습 필요</p></Card><Card title="최근 점수" icon={<span>🎓</span>}><strong>{latest ? latest.reading+latest.listening+latest.speaking+latest.writing : 0}</strong><p>약점 영역: {weak}</p></Card><Card title="약점 영역" icon={<span>📊</span>}><ResponsiveContainer height={220}><BarChart data={wrongCounts}><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey="section"/><YAxis allowDecimals={false}/><Tooltip/><Bar dataKey="count" fill="#6366f1" radius={[8,8,0,0]}/></BarChart></ResponsiveContainer></Card></div>;
-}
-function Vocabulary({data,setData}) {
-  const [form,setForm]=useState({word:'',meaning:'',pos:'noun',example:''}); const [quiz,setQuiz]=useState(null);
-  const add=()=> form.word && setData(d=>({...d,vocab:[...d.vocab,{...form,id:uid(),status:'new',reviewDate:today(),interval:1}]}));
-  const updateStatus=(id,status)=>setData(d=>({...d,vocab:d.vocab.map(v=>v.id===id?{...v,status,interval:status==='mastered'?Math.max(v.interval*2,7):v.interval+1,reviewDate:addDays(status==='mastered'?Math.max(v.interval*2,7):v.interval+1)}:v)}));
-  const test=()=>setQuiz(data.vocab[Math.floor(Math.random()*data.vocab.length)]);
-  return <Card title="Vocabulary" icon={<span>📚</span>}><div className="form four"><input placeholder="단어" onChange={e=>setForm({...form,word:e.target.value})}/><input placeholder="뜻" onChange={e=>setForm({...form,meaning:e.target.value})}/><input placeholder="품사" value={form.pos} onChange={e=>setForm({...form,pos:e.target.value})}/><input placeholder="예문" onChange={e=>setForm({...form,example:e.target.value})}/><button onClick={add}><span>＋</span>추가</button><button onClick={test}>랜덤 테스트</button></div>{quiz&&<div className="quiz">Q. <b>{quiz.word}</b>의 뜻은? <span>{quiz.meaning}</span></div>}<div className="table">{data.vocab.map(v=><div className="row" key={v.id}><b>{v.word}</b><span>{v.pos}</span><span>{v.meaning}</span><small>{v.example}</small><select value={v.status} onChange={e=>updateStatus(v.id,e.target.value)}><option>new</option><option>learning</option><option>mastered</option></select><span>복습: {v.reviewDate}</span></div>)}</div></Card>;
-}
-function Materials({data,setData,admin=false}) { const [f,setF]=useState({date:today(),reading:'',listening:'',speaking:'',writing:''}); const save=()=>setData(d=>({...d,materials:[...d.materials.filter(m=>m.date!==f.date),{...f,id:uid()}].sort((a,b)=>b.date.localeCompare(a.date))})); const del=id=>setData(d=>({...d,materials:d.materials.filter(m=>m.id!==id)})); return <Card title={admin?'Admin Page - 학습자료 관리':'Daily Study Materials'} icon={<span>📚</span>}>{admin&&<div className="form"><input type="date" value={f.date} onChange={e=>setF({...f,date:e.target.value})}/>{['reading','listening','speaking','writing'].map(k=><textarea key={k} placeholder={k} onChange={e=>setF({...f,[k]:e.target.value})}/>) }<button onClick={save}>저장/수정</button></div>}{data.materials.map(m=><article className="material" key={m.id}><h3>{m.date}</h3>{admin&&<button className="ghost" onClick={()=>del(m.id)}><span>🗑️</span></button>}<p><b>Reading</b> {m.reading}</p><p><b>Listening</b> {m.listening}</p><p><b>Speaking</b> {m.speaking}</p><p><b>Writing</b> {m.writing}</p></article>)}</Card> }
-function WrongNote({data,setData}) { const [f,setF]=useState({date:today(),section:'Reading',question:'',reason:'',fix:''}); const add=()=>setData(d=>({...d,wrongNotes:[{...f,id:uid()},...d.wrongNotes]})); return <Card title="Wrong Note" icon={<span>📝</span>}><div className="form"><select onChange={e=>setF({...f,section:e.target.value})}>{sections.map(s=><option>{s}</option>)}</select><input placeholder="틀린 문제" onChange={e=>setF({...f,question:e.target.value})}/><input placeholder="틀린 이유" onChange={e=>setF({...f,reason:e.target.value})}/><input placeholder="개선 전략" onChange={e=>setF({...f,fix:e.target.value})}/><button onClick={add}>저장</button></div>{data.wrongNotes.map(n=><div className="note" key={n.id}><b>{n.section}</b> {n.question}<p>이유: {n.reason}</p><small>전략: {n.fix}</small></div>)}</Card> }
-function Timer({data,setData}) { const [running,setRunning]=useState(false), [sec,setSec]=useState(0), [subject,setSubject]=useState('Reading'); useEffect(()=>{if(!running)return; const t=setInterval(()=>setSec(s=>s+1),1000); return()=>clearInterval(t)},[running]); const save=()=>{setData(d=>({...d,timerLogs:[...d.timerLogs,{id:uid(),date:today(),subject,minutes:Math.max(1,Math.round(sec/60))}]}));setSec(0);setRunning(false)}; const stats=Object.values(data.timerLogs.reduce((a,l)=>{const key=l.date;a[key]??={date:key,minutes:0};a[key].minutes+=l.minutes;return a},{})); return <Card title="Study Timer" icon={<span>⏱️</span>}><div className="timer"><select value={subject} onChange={e=>setSubject(e.target.value)}>{[...sections,'Vocabulary'].map(s=><option>{s}</option>)}</select><strong>{String(Math.floor(sec/60)).padStart(2,'0')}:{String(sec%60).padStart(2,'0')}</strong><button onClick={()=>setRunning(!running)}>{running?'일시정지':'시작'}</button><button onClick={save}>저장</button></div><ResponsiveContainer height={240}><AreaChart data={stats}><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey="date"/><YAxis/><Tooltip/><Area dataKey="minutes" fill="#22c55e" stroke="#16a34a"/></AreaChart></ResponsiveContainer></Card> }
-function Scores({data,setData}) { const [f,setF]=useState({date:today(),reading:0,listening:0,speaking:0,writing:0}); const add=()=>setData(d=>({...d,scores:[...d.scores,{...f,id:uid(),reading:+f.reading,listening:+f.listening,speaking:+f.speaking,writing:+f.writing}]})); const chart=data.scores.map(s=>({...s,total:s.reading+s.listening+s.speaking+s.writing})); return <Card title="TOEFL Score Tracker" icon={<span>🎓</span>}><div className="form six"><input type="date" value={f.date} onChange={e=>setF({...f,date:e.target.value})}/>{sections.map(s=><input type="number" min="0" max="30" placeholder={s} onChange={e=>setF({...f,[s.toLowerCase()]:e.target.value})}/>) }<button onClick={add}>점수 추가</button></div><ResponsiveContainer height={260}><LineChart data={chart}><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey="date"/><YAxis domain={[0,120]}/><Tooltip/><Legend/><Line dataKey="total" stroke="#ef4444" strokeWidth={3}/><Line dataKey="reading" stroke="#6366f1"/><Line dataKey="listening" stroke="#06b6d4"/><Line dataKey="speaking" stroke="#f59e0b"/><Line dataKey="writing" stroke="#22c55e"/></LineChart></ResponsiveContainer></Card> }
-function App(){ const [data,setData]=useStore(); const [tab,setTab]=useState('Dashboard'); const pages={Dashboard:<Dashboard data={data}/>,Vocabulary:<Vocabulary data={data} setData={setData}/>,Materials:<Materials data={data} setData={setData}/>,WrongNote:<WrongNote data={data} setData={setData}/>,Timer:<Timer data={data} setData={setData}/>,Scores:<Scores data={data} setData={setData}/>,Admin:<Materials data={data} setData={setData} admin/>}; return <><aside><h1>TOEFL Coach</h1>{Object.keys(pages).map(p=><button className={tab===p?'active':''} onClick={()=>setTab(p)}>{p}</button>)}</aside><main><header><h2>개인 TOEFL 학습 코치</h2><p>localStorage 기반 학습 관리 · {today()}</p></header>{pages[tab]}</main></> }
-createRoot(document.getElementById('root')).render(<App />);
+createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
